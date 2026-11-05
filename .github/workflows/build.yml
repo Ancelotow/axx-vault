@@ -1,44 +1,106 @@
 name: Build desktop apps
-on:
+"on":
   workflow_dispatch:
   push:
-    paths:
-      - '**'
   pull_request:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   desktop:
+    name: ${{ matrix.name }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
+          - name: Windows x64
+            os: windows-2025
             runtime: win-x64
-          - os: macos-15
+            architecture: x64
+          - name: macOS Apple Silicon
+            os: macos-15
             runtime: osx-arm64
-          - os: macos-15-intel
+            architecture: arm64
+          - name: macOS Intel
+            os: macos-15-intel
             runtime: osx-x64
+            architecture: x64
     runs-on: ${{ matrix.os }}
+    env:
+      QT_QPA_PLATFORM: offscreen
+      PYTHONUTF8: '1'
+      PIP_DISABLE_PIP_VERSION_CHECK: '1'
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Récupérer les sources
+        uses: actions/checkout@v7.0.1
+
+      - name: Installer Python
+        uses: actions/setup-python@v7.1.0
         with:
           python-version: '3.12'
-      - uses: actions/setup-dotnet@v4
+          architecture: ${{ matrix.architecture }}
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Installer le SDK .NET
+        uses: actions/setup-dotnet@v6.1.0
         with:
           dotnet-version: '10.0.401'
-      - run: python -m pip install -r requirements-dev.txt
-      - run: python tools/build_engine.py --runtime ${{ matrix.runtime }}
-      - run: python -m pytest -q
-        env:
-          QT_QPA_PLATFORM: offscreen
-      - run: python tools/package_app.py
-        env:
-          QT_QPA_PLATFORM: offscreen
-      - uses: actions/upload-artifact@v4
+
+      - name: Installer les dépendances Python
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: Compiler le moteur AxCrypt pour la plateforme
+        run: python tools/build_engine.py --runtime ${{ matrix.runtime }}
+
+      - name: Tester le moteur et l’interface Qt
+        run: python -m pytest -q --junitxml=build/test-results.xml
+
+      - name: Créer l’application autonome et les sources correspondantes
+        run: python tools/package_app.py
+
+      - name: Vérifier le démarrage et la signature du paquet macOS
+        if: runner.os == 'macOS'
+        run: python tools/check_macos_package.py
+
+      - name: Conserver le rapport de tests
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: Tests-${{ matrix.runtime }}
+          path: build/test-results.xml
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Mettre les applications à disposition
+        id: application
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: AxxVault-${{ matrix.runtime }}
           path: dist/*.zip
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+      - name: Ajouter les liens au résumé du build
+        shell: python
+        env:
+          PLATFORM: ${{ matrix.name }}
+          ARTIFACT_URL: ${{ steps.application.outputs.artifact-url }}
+        run: |
+          import os
+          from pathlib import Path
+          with Path(os.environ['GITHUB_STEP_SUMMARY']).open('a', encoding='utf-8') as summary:
+              summary.write(f"### {os.environ['PLATFORM']}\n\n")
+              summary.write("Tests réussis et application autonome créée.\n\n")
+              summary.write(f"[Télécharger l’application et ses sources]({os.environ['ARTIFACT_URL']})\n\n")
+              summary.write("Artefacts conservés 14 jours. Application non signée pour une distribution publique.\n")

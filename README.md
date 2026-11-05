@@ -1,5 +1,7 @@
 # AxxVault
 
+[![Compilation Windows et macOS](https://github.com/Ancelotow/axx-vault/actions/workflows/build.yml/badge.svg)](https://github.com/Ancelotow/axx-vault/actions/workflows/build.yml)
+
 Application de bureau en français pour **lire, déchiffrer et chiffrer des fichiers AxCrypt**,
 sans compte et hors ligne. Interface Qt / PySide6 ; moteur Xecrets Cli compilé depuis ses
 sources GPL, issues d’AxCrypt. Windows 11 x64 et macOS 14 ou ultérieur, Apple Silicon / Intel.
@@ -85,6 +87,31 @@ et teste séparément Windows x64, macOS Apple Silicon et macOS Intel ; il ne pu
 Les artefacts sont non signés par un certificat de distribution ; la signature macOS locale
 est ad hoc. Signature Developer ID, notarisation et signature Windows restent à configurer
 pour une distribution publique.
+
+## Compilation automatique sur GitHub
+
+Le workflow **Build desktop apps** se déclenche à chaque push et pull request.
+Il peut aussi être lancé manuellement depuis **Actions → Build desktop apps → Run workflow**.
+Il installe Python et .NET, compile le moteur, exécute les tests avec Qt hors écran,
+puis crée une application autonome sur chaque système cible :
+
+| Artefact | Système |
+| --- | --- |
+| `AxxVault-win-x64` | Windows x64, avec `AxxVault.exe` |
+| `AxxVault-osx-arm64` | macOS Apple Silicon, avec `AxxVault.app` |
+| `AxxVault-osx-x64` | macOS Intel, avec `AxxVault.app` |
+
+Pour télécharger une application, ouvrez la [page Actions](https://github.com/Ancelotow/axx-vault/actions/workflows/build.yml),
+sélectionnez une exécution réussie, puis l’artefact souhaité dans **Artifacts**.
+Connectez-vous à GitHub pour télécharger les artefacts. Chaque artefact contient
+le ZIP de l’application et l’archive de ses sources correspondantes ; extrayez aussi
+le ZIP de l’application avant de la lancer. Les liens figurent dans le résumé du build.
+
+Les artefacts et les rapports JUnit `Tests-*` sont conservés **14 jours**.
+Le démarrage, la signature locale et le moteur inclus sont également vérifiés pour
+les paquets macOS. Ces tests Qt hors écran ne remplacent pas une vérification visuelle
+sur chaque système. Ce workflow ne crée pas de release publique et ne configure
+ni certificat de signature ni notarisation.
 
 ## Protection des données
 
